@@ -4,6 +4,8 @@
 #include <QKeySequence>
 #include <QShortcut>
 #include <QString>
+#include <QHash>
+#include <QMap>
 
 #if QT_VERSION < 0x050000
 class LambdaWrapper : public QObject
@@ -48,9 +50,9 @@ private:
     QString makeTooltip(const QString& Tool1st, const QString& Keylist) const;
 
     typedef QPair< QAbstractButton*, QShortcut* > Accelerator_t;
-    typedef QHash< QKeySequence, Accelerator_t > Hotkeys_t;
+    typedef QMap< QKeySequence, Accelerator_t > Hotkeys_t;
 #if QT_VERSION < 0x050000
-    typedef QHash< QKeySequence, LambdaWrapper* > Lambdas_t;
+    typedef QMap< QKeySequence, LambdaWrapper* > Lambdas_t;
 #endif // QT 4 or 5
     typedef QHash< QAbstractButton*, QString > ToolTips_t;
 
