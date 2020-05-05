@@ -4,13 +4,15 @@
 #include <QKeySequence>
 #include <QShortcut>
 
+
 #include <QDebug>
 
 #include "multihotkey.h"
 
 
-MultiHotKey::MultiHotKey( bool withTooltip )
-  : m_withTooltips( withTooltip )
+MultiHotKey::MultiHotKey(bool withTooltip , QObject* parent)
+  : QObject(parent)
+  , m_withTooltips( withTooltip )
   {
   }
 
@@ -52,13 +54,26 @@ bool MultiHotKey::bindKeySequence_intern(const QKeySequence &KeySequence, QAbstr
         QShortcut * usedShortcut = Accel.second;
         QObject::disconnect( usedShortcut, &QShortcut::activated, nullptr, nullptr );
         m_ButtonsAndKeys.remove( KeySequence );
+#if QT_VERSION < 0x050000
+        LambdaWrapper* pOldAction = m_Lambdas[ KeySequence ];
+        m_Lambdas.remove( KeySequence );
+        delete pOldAction;
+#endif // has QT4 or 5
         //qDebug() << "removed Hotkey" << KeySequence.toString() << "from" << storedButtonName;
         delete usedShortcut;
       }
     }
 
     QShortcut *pShortCut = new QShortcut( KeySequence, button );
+
+#if QT_VERSION < 0x050000
+    LambdaWrapper* pLambdaAction = new LambdaWrapper( [button](){ button->animateClick(); }, this );
+    QObject::connect( pShortCut, SIGNAL(activated()), pLambdaAction, SLOT(call()) );
+    m_Lambdas[ KeySequence ] = pLambdaAction;
+#else
     QObject::connect( pShortCut, &QShortcut::activated, [button](){ button->animateClick(); });
+#endif // has QT4 or 5
+
     m_ButtonsAndKeys[ KeySequence ] = Accelerator_t( button, pShortCut );
     if( takeToolTip ) // any string, even "" replaces stored string, but "" makes deletion of tooltip and useToolTip=false kepps it as it is
     { m_ButtonsAndTips[ button ] = Tooltip1st;
@@ -114,6 +129,11 @@ bool MultiHotKey::unbindKeySequences( QAbstractButton *button )
       {
         QObject::disconnect( usedShortcut, &QShortcut::activated, nullptr, nullptr );
         it = m_ButtonsAndKeys.erase( it );
+#if QT_VERSION < 0x050000
+        LambdaWrapper* pOldAction = m_Lambdas[ KeySequence ];
+        m_Lambdas.remove( KeySequence );
+        delete pOldAction;
+#endif // has QT4 or 5
         //qDebug() << "removed Hotkey" << KeySequence.toString() << "from" << storedButtonName;
         delete usedShortcut;
         bDone=true;
