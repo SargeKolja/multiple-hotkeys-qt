@@ -52,13 +52,15 @@ bool MultiHotKey::bindKeySequence_intern(const QKeySequence &KeySequence, QAbstr
       else
       {
         QShortcut * usedShortcut = Accel.second;
-        QObject::disconnect( usedShortcut, &QShortcut::activated, nullptr, nullptr );
-        m_ButtonsAndKeys.remove( KeySequence );
 #if QT_VERSION < 0x050000
+        usedShortcut->disconnect( SIGNAL(activated()) );
         LambdaWrapper* pOldAction = m_Lambdas[ KeySequence ];
         m_Lambdas.remove( KeySequence );
         delete pOldAction;
+#else
+        QObject::disconnect( usedShortcut, &QShortcut::activated, nullptr, nullptr );
 #endif // has QT4 or 5
+        m_ButtonsAndKeys.remove( KeySequence );
         //qDebug() << "removed Hotkey" << KeySequence.toString() << "from" << storedButtonName;
         delete usedShortcut;
       }
@@ -101,7 +103,14 @@ bool MultiHotKey::unbindKeySequence( const QKeySequence &KeySequence, QAbstractB
     if( !button || (button->text() == storedButtonName ) ) // call for one special button or call for all buttons
     {
       QShortcut * usedShortcut = Accel.second;
+#if QT_VERSION < 0x050000
+      usedShortcut->disconnect( SIGNAL(activated()) );
+      LambdaWrapper* pOldAction = m_Lambdas[ KeySequence ];
+      m_Lambdas.remove( KeySequence );
+      delete pOldAction;
+#else
       QObject::disconnect( usedShortcut, &QShortcut::activated, nullptr, nullptr );
+#endif // has QT4 or 5
       m_ButtonsAndKeys.remove( KeySequence );
       //qDebug() << "removed Hotkey" << KeySequence.toString() << "from" << storedButtonName;
       delete usedShortcut;
@@ -127,13 +136,15 @@ bool MultiHotKey::unbindKeySequences( QAbstractButton *button )
 
       if( !button || (button == curr_button ) ) // call for one special button or call for all buttons
       {
-        QObject::disconnect( usedShortcut, &QShortcut::activated, nullptr, nullptr );
-        it = m_ButtonsAndKeys.erase( it );
 #if QT_VERSION < 0x050000
+        usedShortcut->disconnect( SIGNAL(activated()) );
         LambdaWrapper* pOldAction = m_Lambdas[ KeySequence ];
         m_Lambdas.remove( KeySequence );
         delete pOldAction;
+#else
+        QObject::disconnect( usedShortcut, &QShortcut::activated, nullptr, nullptr );
 #endif // has QT4 or 5
+        it = m_ButtonsAndKeys.erase( it );
         //qDebug() << "removed Hotkey" << KeySequence.toString() << "from" << storedButtonName;
         delete usedShortcut;
         bDone=true;
