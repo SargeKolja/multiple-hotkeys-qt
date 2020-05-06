@@ -46,14 +46,16 @@ public:
     bool bindKeySequence(const QKeySequence &KeySequence, QAbstractButton *button );                             // bind this seq to this button
     bool unbindKeySequence( const QKeySequence &KeySequence, QAbstractButton *button=nullptr );  // remove this seq from this or from any button
     bool unbindKeySequences( QAbstractButton *button=nullptr ); // remove all sequences from this or from all buttons
-    QString getAllHotkeys( QAbstractButton *button=nullptr ) const; // get human readable string of hotkeys from this or from all buttons
-    void refreshHotkeyTooltip( QAbstractButton *button=nullptr ); // refresh human readable string of hotkeys, i.e. after changing ButtonLabel (from this or from all buttons)
+    QString getAllHotkeys(QAbstractButton *button, bool TooltipFriendlyFormat=true ) const; // get human readable string of hotkeys all from only this button, false is for verbose format (debug or log)
+    QStringList getAllHotkeysByButton( bool TooltipFriendlyFormat=false ) const; // get human readable string list of all hotkeys from all registered buttons
+    void refreshHotkeyTooltip( QAbstractButton *button=nullptr, const QString& setTooltip = QString() ); // refresh human readable string of hotkeys, i.e. after changing ButtonLabel (from this or from all buttons)
 
 private:
     bool bindKeySequence_intern(const QKeySequence &KeySequence, QAbstractButton *button, bool takeToolTip, const QString& Tooltip1st );  // bind this seq to this button
     QString makeTooltip(const QString& Tool1st, const QString& Keylist) const;
 
     typedef QPair< QAbstractButton*, QShortcut* > Accelerator_t;
+    // to use QHash with QKeySequence also in Qt4, you need to declare: uint qHash(const QKeySequence &key, uint seed = 0) noexcept;
     typedef QMap< QKeySequence, Accelerator_t > Hotkeys_t;
 #if QT_VERSION < 0x050000
     typedef QMap< QKeySequence, LambdaWrapper* > Lambdas_t;

@@ -60,7 +60,7 @@ void QDemoWindow::on_Button1_clicked( bool checked )
     }
 
   m_Hotkeys.refreshHotkeyTooltip( m_pButton1 );
-  //qDebug() << "Hotkeys of Btn 1:" << m_Hotkeys.getAllHotkeys( m_pButton1 );
+  qDebug() << "Hotkeys of Btn 1:" << m_Hotkeys.getAllHotkeys( m_pButton1, false );
 }
 
 
@@ -72,13 +72,15 @@ void QDemoWindow::on_Button2_clicked( bool checked )
 
   if( checked )
     { m_pButton2->setText("Checked");
+      m_Hotkeys.refreshHotkeyTooltip( m_pButton2, "Tooltip was changed intentionally via new Refresh Function" );
     }
   else
     {   m_pButton2->setText(m_Button2_Label);
+        m_pButton2->setToolTip("Tooltip was changed intentionally to \"not checked\".");
     }
 
   m_Hotkeys.refreshHotkeyTooltip( m_pButton2 );
-  //qDebug() << "Hotkeys of Btn 2:" << m_Hotkeys.getAllHotkeys( m_pButton2 );
+  qDebug() << "Hotkeys of Btn 2:" << m_Hotkeys.getAllHotkeys( m_pButton2, false );
 }
 
 
@@ -107,6 +109,6 @@ void QDemoWindow::on_ButtonChange_clicked( bool checked )
     }
 
     m_Hotkeys.refreshHotkeyTooltip( nullptr ); // for all
-    //qDebug() << "All Hotkeys active:" << m_Hotkeys.getAllHotkeys( nullptr );
+    qDebug() << "All Hotkeys active:" << m_Hotkeys.getAllHotkeysByButton();
 }
 

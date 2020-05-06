@@ -157,21 +157,35 @@ bool MultiHotKey::unbindKeySequences( QAbstractButton *button )
 }
 
 
-QString MultiHotKey::getAllHotkeys( QAbstractButton *button ) const
+/* ==
+ * a) get a human readable String with _all_ hotkeys of the given Button
+ * b) get a human readable String with _all_ hotkeys of _all_ Buttons in case of arg1 == NULL (or empty, it's default)
+ *    i.e.: "Hotkeys:'Alt+E', '+', 'Alt+A', '2', 'Alt+D', 'Return', 'Enter', 'Shift+Return', 'Ctrl+Return', 'Alt+Return'"
+ * no c) if one wants to have all Buttons hotkeys grouped by button, one need to call this from iteration:
+ *    QStringList MultiHotKey::getAllHotkeysByButton(void)
+ * == */
+QString MultiHotKey::getAllHotkeys( QAbstractButton *button, bool TooltipFriendlyFormat ) const
 {
     QString ShortCutNames;
-    QString AltAccelerator;
+    if( !button )
+    {
+      return ShortCutNames;
+    }
+
+    QString AltAccelerator, storedButtonName;
     int num=0;
 
+    // we don not maintain a list 'per button', but a list 'per hotkey' which contains 1...n hotkeys pointing to a button - thats why we need to loop all
     Hotkeys_t::const_iterator it = m_ButtonsAndKeys.begin();
     while( it != m_ButtonsAndKeys.end() )
     {
-      QKeySequence KeySequence = it.key();
       QAbstractButton* curr_button = it.value().first;
-      QString storedButtonName( it.value().first->text() );
 
-      if( !button || (button == curr_button ) ) // call for one special button or call for all buttons
+      if( button == curr_button ) // found the requested button
       {
+        QKeySequence KeySequence = it.key();
+        storedButtonName = it.value().first->text();
+
         QString AltLetter;
         int from=0, ampersand, twice;
         //qDebug() << "found Hotkey" << KeySequence.toString() << "from" << storedButtonName;
@@ -189,7 +203,7 @@ QString MultiHotKey::getAllHotkeys( QAbstractButton *button ) const
           }
         } while( ampersand>-1 && ++from < storedButtonName.length() );
 
-        if( ! AltLetter.isEmpty() && ! ShortCutNames.contains(AltLetter) )
+        if( ! AltLetter.isEmpty() && ! ShortCutNames.contains(AltLetter) ) // ensure, the Alt+... Letter is only inserted once and only at 1st position
         {
           if( ! ShortCutNames.isEmpty() )
           { ShortCutNames.append("', '");
@@ -205,23 +219,46 @@ QString MultiHotKey::getAllHotkeys( QAbstractButton *button ) const
       it++;
     }
 
-    if( num==1 )
+    if( TooltipFriendlyFormat )
     {
-      ShortCutNames.prepend( QObject::tr("Hotkey:'") );
-      ShortCutNames.append("'");
+        QString Line( ( num==1 ) ? \
+                    (QObject::tr("Hotkey:'%1'").arg(ShortCutNames)) : \
+                    (QObject::tr("Hotkeys:'%1'").arg(ShortCutNames)) );
+        return Line;
     }
-    else if( num>1 )
+    else
     {
-      ShortCutNames.prepend( QObject::tr("Hotkeys:'") );
-      ShortCutNames.append("'");
+        QString Line( ( num==1 ) ? \
+                    (QObject::tr("Hotkey('%1'):'%2'").arg(storedButtonName).arg(ShortCutNames)) : \
+                    (QObject::tr("Hotkeys('%1'):'%2'").arg(storedButtonName).arg(ShortCutNames)) );
+        return Line;
     }
-
-    return ShortCutNames;
 }
 
 
+QStringList MultiHotKey::getAllHotkeysByButton( bool TooltipFriendlyFormat ) const
+{
+  QStringList ListOfHotkeys;
 
-void MultiHotKey::refreshHotkeyTooltip(QAbstractButton* button)
+  Hotkeys_t::const_iterator it = m_ButtonsAndKeys.begin();
+  QStringList seen;
+  while( it != m_ButtonsAndKeys.end() )
+  {
+    QAbstractButton* curr_button = it.value().first;
+    QString curr_imprint( it.value().first->text() );
+    if( ! seen.contains( curr_imprint ) ) // only evaluate the getAllHotkeys 1 times for each button, while this loop is for each hotkey
+    {
+      QString HotKeys = getAllHotkeys( curr_button, TooltipFriendlyFormat ) + "\n";
+      ListOfHotkeys.push_back( HotKeys );
+      seen.push_back( curr_imprint );
+    }
+    ++it;
+  }
+  return ListOfHotkeys;
+}
+
+
+void MultiHotKey::refreshHotkeyTooltip(QAbstractButton* button, const QString& setTooltip)
 {
     Hotkeys_t::iterator it = m_ButtonsAndKeys.begin();
     while( it != m_ButtonsAndKeys.end() )
@@ -229,12 +266,13 @@ void MultiHotKey::refreshHotkeyTooltip(QAbstractButton* button)
       QAbstractButton* curr_button = it.value().first;
       if( !button || button == curr_button ) // call for one special button or call for all buttons
       {
-        QString RecentToolTip( m_ButtonsAndTips[ curr_button ] );
+        QString RecentToolTip( setTooltip.isEmpty() ? m_ButtonsAndTips[ curr_button ] : setTooltip );
         if( RecentToolTip.isEmpty() )
-        {  RecentToolTip = button->toolTip();
-           m_ButtonsAndTips[ button ] = RecentToolTip;
+        {  RecentToolTip = curr_button->toolTip();
         }
-        curr_button->setToolTip( makeTooltip( RecentToolTip, getAllHotkeys(curr_button) ) );
+        m_ButtonsAndTips[ curr_button ] = RecentToolTip;
+        QString newTooltip( makeTooltip( RecentToolTip, getAllHotkeys(curr_button) ) );
+        curr_button->setToolTip( newTooltip );
       }
       it++;
     }
