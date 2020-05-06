@@ -1,3 +1,7 @@
+#ifndef MULTIHOTKEY_H
+#define MULTIHOTKEY_H
+
+
 #include <QtGlobal>
 #include <functional> // Qt4 needs some help, because it does not know the new Qt5 Signal/Slot extensions
 #include <QAbstractButton>
@@ -63,3 +67,5 @@ private:
 #endif // QT 4 or 5
     bool       m_withTooltips;
 };
+
+#endif // MULTIHOTKEY_H
