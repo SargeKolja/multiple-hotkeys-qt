@@ -3,7 +3,11 @@
 
 
 #include <QtGlobal>
-#include <functional> // Qt4 needs some help, because it does not know the new Qt5 Signal/Slot extensions
+
+#if defined( MULTIHOTKEY_LAMBDA )
+#  include <functional> // Qt4 needs some help, because it does not know the new Qt5 Signal/Slot extensions
+#endif
+
 #include <QAbstractButton>
 #include <QKeySequence>
 #include <QShortcut>
@@ -11,7 +15,30 @@
 #include <QHash>
 #include <QMap>
 
-#if QT_VERSION < 0x050000
+#if !defined( MULTIHOTKEY_LAMBDA )
+class SlotWrapper : public QObject
+{
+  Q_OBJECT
+public:
+    SlotWrapper( QAbstractButton *button, QObject* parent = 0)
+      : QObject(parent)
+      , m_pButton(button)
+    {}
+
+    ~SlotWrapper()
+    {
+      disconnect( this, SLOT(call()) );
+    }
+
+public slots:
+    void call() { if( m_pButton ) m_pButton->animateClick(); }
+
+private:
+  QAbstractButton* m_pButton;  // must be compatible to: void QAbstractButton::animateClick( int msec=100 ), we choose: void foo(void)
+};
+
+#elif defined(QT_VERSION) && (QT_VERSION < 0x050000)
+
 class LambdaWrapper : public QObject
 {
   Q_OBJECT
@@ -22,7 +49,9 @@ public:
     {}
 
     ~LambdaWrapper()
-    {}
+    {
+      disconnect( this, SLOT(call()) );
+    }
 
 public slots:
     void call() { if( m_ptr ) m_ptr(); }
@@ -57,14 +86,18 @@ private:
     typedef QPair< QAbstractButton*, QShortcut* > Accelerator_t;
     // to use QHash with QKeySequence also in Qt4, you need to declare: uint qHash(const QKeySequence &key, uint seed = 0) noexcept;
     typedef QMap< QKeySequence, Accelerator_t > Hotkeys_t;
-#if QT_VERSION < 0x050000
+#if !defined(MULTIHOTKEY_LAMBDA)
+    typedef QMap< QKeySequence, SlotWrapper* > SlotsWrap_t;
+#elif defined(QT_VERSION) && (QT_VERSION < 0x050000)
     typedef QMap< QKeySequence, LambdaWrapper* > Lambdas_t;
 #endif // QT 4 or 5
     typedef QHash< QAbstractButton*, QString > ToolTips_t;
 
     Hotkeys_t  m_ButtonsAndKeys;
     ToolTips_t m_ButtonsAndTips;
-#if QT_VERSION < 0x050000
+#if !defined(MULTIHOTKEY_LAMBDA)
+    SlotsWrap_t m_Slots;
+#elif defined(QT_VERSION) && (QT_VERSION < 0x050000)
     Lambdas_t  m_Lambdas;
 #endif // QT 4 or 5
     bool       m_withTooltips;

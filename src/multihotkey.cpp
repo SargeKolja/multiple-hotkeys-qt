@@ -52,7 +52,12 @@ bool MultiHotKey::bindKeySequence_intern(const QKeySequence &KeySequence, QAbstr
       else
       {
         QShortcut * usedShortcut = Accel.second;
-#if QT_VERSION < 0x050000
+#if !defined(MULTIHOTKEY_LAMBDA)
+        usedShortcut->disconnect( SIGNAL(activated()) );
+        SlotWrapper* pOldAction = m_Slots[ KeySequence ];
+        m_Slots.remove( KeySequence );
+        delete pOldAction;
+#elif defined(QT_VERSION) && (QT_VERSION < 0x050000)
         usedShortcut->disconnect( SIGNAL(activated()) );
         LambdaWrapper* pOldAction = m_Lambdas[ KeySequence ];
         m_Lambdas.remove( KeySequence );
@@ -68,7 +73,11 @@ bool MultiHotKey::bindKeySequence_intern(const QKeySequence &KeySequence, QAbstr
 
     QShortcut *pShortCut = new QShortcut( KeySequence, button );
 
-#if QT_VERSION < 0x050000
+#if !defined(MULTIHOTKEY_LAMBDA)
+    SlotWrapper* pSlotWrapper = new SlotWrapper( button, this );
+    QObject::connect( pShortCut, SIGNAL(activated()), pSlotWrapper, SLOT(call()) );
+    m_Slots[ KeySequence ] = pSlotWrapper;
+#elif defined(QT_VERSION) && (QT_VERSION < 0x050000)
     LambdaWrapper* pLambdaAction = new LambdaWrapper( [button](){ button->animateClick(); }, this );
     QObject::connect( pShortCut, SIGNAL(activated()), pLambdaAction, SLOT(call()) );
     m_Lambdas[ KeySequence ] = pLambdaAction;
@@ -103,7 +112,12 @@ bool MultiHotKey::unbindKeySequence( const QKeySequence &KeySequence, QAbstractB
     if( !button || (button->text() == storedButtonName ) ) // call for one special button or call for all buttons
     {
       QShortcut * usedShortcut = Accel.second;
-#if QT_VERSION < 0x050000
+#if !defined(MULTIHOTKEY_LAMBDA)
+      usedShortcut->disconnect( SIGNAL(activated()) );
+      SlotWrapper* pOldAction = m_Slots[ KeySequence ];
+      m_Slots.remove( KeySequence );
+      delete pOldAction;
+#elif defined(QT_VERSION) && (QT_VERSION < 0x050000)
       usedShortcut->disconnect( SIGNAL(activated()) );
       LambdaWrapper* pOldAction = m_Lambdas[ KeySequence ];
       m_Lambdas.remove( KeySequence );
@@ -136,7 +150,12 @@ bool MultiHotKey::unbindKeySequences( QAbstractButton *button )
 
       if( !button || (button == curr_button ) ) // call for one special button or call for all buttons
       {
-#if QT_VERSION < 0x050000
+#if !defined(MULTIHOTKEY_LAMBDA)
+        usedShortcut->disconnect( SIGNAL(activated()) );
+        SlotWrapper* pOldAction = m_Slots[ KeySequence ];
+        m_Slots.remove( KeySequence );
+        delete pOldAction;
+#elif defined(QT_VERSION) && (QT_VERSION < 0x050000)
         usedShortcut->disconnect( SIGNAL(activated()) );
         LambdaWrapper* pOldAction = m_Lambdas[ KeySequence ];
         m_Lambdas.remove( KeySequence );
