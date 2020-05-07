@@ -24,7 +24,9 @@ private:
     QPushButton *m_pButton1; QString m_Button1_Label;
     QPushButton *m_pButton2; QString m_Button2_Label;
     QPushButton *m_pButtonChange;
+    QPushButton *m_pButtonA, *m_pButtonB, *m_pButtonC;
     MultiHotKey m_Hotkeys;
+    MultiHotKey m_Hotkeys_2;
 };
 
 #endif // QDEMO_WINDOW_H

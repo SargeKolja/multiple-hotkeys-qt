@@ -14,6 +14,7 @@
 #include <QString>
 #include <QHash>
 #include <QMap>
+#include <QSet>
 
 #if !defined( MULTIHOTKEY_LAMBDA )
 class SlotWrapper : public QObject
@@ -71,18 +72,25 @@ public:
     explicit MultiHotKey( bool withTooltip = HotKeyToolTipNO, QObject* parent = 0 );
     ~MultiHotKey();
 
-    bool bindKeySequence(const QKeySequence &KeySequence, QAbstractButton *button, const QString& Tooltip1st );  // bind this seq to this button
+    QAbstractButton* registerButton(QAbstractButton* button );  // just register the button, no hotkey handling, (optionally inherit its tooltip)
+    QAbstractButton* registerToolTip(QAbstractButton* button, const QString& Tooltip1st );  // just register the tooltip (or replace it with empty string)
+    bool bindKeySequence(const QKeySequence &KeySequence, QAbstractButton *button, const QString& Tooltip1st );  // bind this seq and Tooltip to this button
     bool bindKeySequence(const QKeySequence &KeySequence, QAbstractButton *button );                             // bind this seq to this button
     bool unbindKeySequence( const QKeySequence &KeySequence, QAbstractButton *button=nullptr );  // remove this seq from this or from any button
     bool unbindKeySequences( QAbstractButton *button=nullptr ); // remove all sequences from this or from all buttons
     QString getAllHotkeys(QAbstractButton *button, bool TooltipFriendlyFormat=true ) const; // get human readable string of hotkeys all from only this button, false is for verbose format (debug or log)
     QStringList getAllHotkeysByButton( bool TooltipFriendlyFormat=false ) const; // get human readable string list of all hotkeys from all registered buttons
-    void refreshHotkeyTooltip( QAbstractButton *button=nullptr, const QString& setTooltip = QString() ); // refresh human readable string of hotkeys, i.e. after changing ButtonLabel (from this or from all buttons)
+    void setToolTip(QAbstractButton* button, const QString& newToolTip);
+    void refreshHotkeyTooltip( QAbstractButton *button=nullptr ); // refresh human readable string of hotkeys, i.e. after changing ButtonLabel or Tooltip via Button->setToolTip()
 
 private:
-    bool bindKeySequence_intern(const QKeySequence &KeySequence, QAbstractButton *button, bool takeToolTip, const QString& Tooltip1st );  // bind this seq to this button
+    bool bindKeySequence_intern(const QKeySequence &KeySequence, QAbstractButton *button, bool takeTooltip1st, const QString& Tooltip1st );  // bind this seq to this button
     QString makeTooltip(const QString& Tool1st, const QString& Keylist) const;
+    void refreshHotkeyTooltip_internal(QAbstractButton* button, const QString& newToolTip, bool bInheritButtonTooltip );
+    QString getAccelerator(const QString& ButtonName) const;
+    QString getCustomToolTip(const QAbstractButton* button) const;
 
+    typedef QSet< QAbstractButton* > BtnLst_t;
     typedef QPair< QAbstractButton*, QShortcut* > Accelerator_t;
     // to use QHash with QKeySequence also in Qt4, you need to declare: uint qHash(const QKeySequence &key, uint seed = 0) noexcept;
     typedef QMap< QKeySequence, Accelerator_t > Hotkeys_t;
@@ -93,6 +101,7 @@ private:
 #endif // QT 4 or 5
     typedef QHash< QAbstractButton*, QString > ToolTips_t;
 
+    BtnLst_t   m_AllButtons;
     Hotkeys_t  m_ButtonsAndKeys;
     ToolTips_t m_ButtonsAndTips;
 #if !defined(MULTIHOTKEY_LAMBDA)
