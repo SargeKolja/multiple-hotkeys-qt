@@ -73,15 +73,26 @@ QDemoWindow::QDemoWindow( QWidget *parent )
     m_pButtonC->setGeometry( ButtonSpacing + (col*(ButtonSpacing+ButtonWidth)), Headlines * (ButtonSpacing + HeadHeight) + (row*(ButtonSpacing+ButtonHeigth)), ButtonWidth, ButtonHeigth);
     col++; if(col>=ButtonsPerRow) {col=0;row++;}
 
-    m_Hotkeys_2.registerButton( m_pButtonA );
+    //m_Hotkeys_2.registerButton( m_pButtonA );
     m_Hotkeys_2.registerToolTip( m_pButtonB, "tooltip for button B" );
     m_Hotkeys_2.setToolTip( m_pButtonC, "C-Tooltip\nhas 2 lines!\n" );
     m_Hotkeys_2.bindKeySequence( QKeySequence( Qt::CTRL | Qt::Key_Space ), m_pButtonC );
     m_Hotkeys_2.refreshHotkeyTooltip(); // refresh all
 
+    qDebug() << "summarize active Hotkeys 1:";
     Q_FOREACH( const QString& button_keys, m_Hotkeys.getAllHotkeysByButton() )
     { qDebug() << "Hotkeys 1:" << button_keys;
     }
+
+    qDebug() << "summarize passive Hotkeys 2:";
+    Q_FOREACH( const QString& button_keys, m_Hotkeys_2.getAllHotkeysByButton() )
+    { qDebug() << "Hotkeys 2:" << button_keys;
+    }
+
+    m_Hotkeys_2.registerButton( m_pButtonA ); // worst case: we register the button for a not hotkeyed/tooltipped/accellerated button, ...
+    m_pButtonA->setText( "&a button" );       // ... next I change label outside the Hotkeymanager, then I
+    m_Hotkeys_2.refreshHotkeyTooltip();       // refresh all -> can we see m_pButtonA's "Alt+A" hotkey?
+    qDebug() << "changed passive Hotkeys 2 after assigning new Labels:";
     Q_FOREACH( const QString& button_keys, m_Hotkeys_2.getAllHotkeysByButton() )
     { qDebug() << "Hotkeys 2:" << button_keys;
     }
