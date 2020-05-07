@@ -64,7 +64,7 @@ bool MultiHotKey::bindKeySequence_intern(const QKeySequence &KeySequence, QAbstr
     if( !button )
       return false;
 
-    if( m_ButtonsAndKeys.contains( KeySequence )  )
+    if( ! KeySequence.isEmpty() && m_ButtonsAndKeys.contains( KeySequence )  )
     {
       Accelerator_t Accel( m_ButtonsAndKeys[ KeySequence ] );
       QString storedButtonName( Accel.first->text() );
@@ -93,32 +93,36 @@ bool MultiHotKey::bindKeySequence_intern(const QKeySequence &KeySequence, QAbstr
         //qDebug() << "removed Hotkey" << KeySequence.toString() << "from" << storedButtonName;
         delete usedShortcut;
       }
-    }
+    } // if( ! KeySequence.isEmpty() && m_ButtonsAndKeys.contains( KeySequence )  )
 
-    QShortcut *pShortCut = 0;
-    try
+    if( ! KeySequence.isEmpty() )
     {
-      pShortCut = new QShortcut( KeySequence, button );
-      m_AllButtons.insert( button );
-    } catch( ... )
-    {
-      qDebug() << "invalid Key sequence" << KeySequence.toString() << "for" << button->text();
-      return false;
-    }
+      QShortcut *pShortCut = 0;
+      try
+      {
+        pShortCut = new QShortcut( KeySequence, button );
+        m_AllButtons.insert( button );
+      } catch( ... )
+      {
+        qDebug() << "invalid Key sequence" << KeySequence.toString() << "for" << button->text();
+        return false;
+      }
 
-#if !defined(MULTIHOTKEY_LAMBDA)
-    SlotWrapper* pSlotWrapper = new SlotWrapper( button, this );
-    QObject::connect( pShortCut, SIGNAL(activated()), pSlotWrapper, SLOT(call()) );
-    m_Slots[ KeySequence ] = pSlotWrapper;
-#elif defined(QT_VERSION) && (QT_VERSION < 0x050000)
-    LambdaWrapper* pLambdaAction = new LambdaWrapper( [button](){ button->animateClick(); }, this );
-    QObject::connect( pShortCut, SIGNAL(activated()), pLambdaAction, SLOT(call()) );
-    m_Lambdas[ KeySequence ] = pLambdaAction;
-#else
-    QObject::connect( pShortCut, &QShortcut::activated, [button](){ button->animateClick(); });
-#endif // has QT4 or 5
+#if   !defined(MULTIHOTKEY_LAMBDA)
+      SlotWrapper* pSlotWrapper = new SlotWrapper( button, this );
+      QObject::connect( pShortCut, SIGNAL(activated()), pSlotWrapper, SLOT(call()) );
+      m_Slots[ KeySequence ] = pSlotWrapper;
+#     elif defined(QT_VERSION) && (QT_VERSION < 0x050000)
+      LambdaWrapper* pLambdaAction = new LambdaWrapper( [button](){ button->animateClick(); }, this );
+      QObject::connect( pShortCut, SIGNAL(activated()), pLambdaAction, SLOT(call()) );
+      m_Lambdas[ KeySequence ] = pLambdaAction;
+#     else
+      QObject::connect( pShortCut, &QShortcut::activated, [button](){ button->animateClick(); });
+#     endif // has QT4 or 5
 
-    m_ButtonsAndKeys[ KeySequence ] = Accelerator_t( button, pShortCut );
+      m_ButtonsAndKeys[ KeySequence ] = Accelerator_t( button, pShortCut );
+    } // if( KeySequence.isEmpty() )
+
     if( takeTooltip1st ) // any string, even "" replaces stored string, but "" makes deletion of tooltip and useToolTip=false kepps it as it is
     { m_ButtonsAndTips[ button ] = Tooltip1st;
       button->setToolTip( makeTooltip( Tooltip1st, getAllHotkeys(button) ) );
