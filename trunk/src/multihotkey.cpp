@@ -393,10 +393,13 @@ void MultiHotKey::refreshHotkeyTooltip_internal(QAbstractButton* button, const Q
 {
   bool bFoundInButtonsAndTips = false;
   ToolTips_t::iterator it = m_ButtonsAndTips.begin();
+  BtnLst_t SeenByTooltip;
 
   while( it != m_ButtonsAndTips.end() )
   {
     QAbstractButton* curr_button = it.key();
+    SeenByTooltip.insert( curr_button );
+
     if( !button || button == curr_button ) // call for one special button or call for all buttons
     {
       /* if arg2 given, take it.
@@ -415,6 +418,17 @@ void MultiHotKey::refreshHotkeyTooltip_internal(QAbstractButton* button, const Q
       bFoundInButtonsAndTips = true;
     }
     it++;
+  }
+
+  if( !button ) // refreshed all, but there might be some only registered, not tooltipped, not hotkeyed buttons with an not yet seen accellerator
+  {
+    BtnLst_t RemainingOfAll( m_AllButtons );
+    RemainingOfAll.subtract( SeenByTooltip );
+    Q_FOREACH( QAbstractButton* rem, RemainingOfAll )
+    {
+      QString newTooltip( makeTooltip( "", getAllHotkeys(rem) ) );
+      rem->setToolTip( newTooltip );
+    }
   }
 
   // currently empty container - typically this is the 1st time we assign a tooltip, before assigning a hotkey!
