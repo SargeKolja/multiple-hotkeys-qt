@@ -1,3 +1,4 @@
+#include <QtGlobal> // Q_ASSERT
 #include <QObject> // at least for tr()
 #include <QString>
 #include <QAbstractButton>
@@ -23,6 +24,29 @@ MultiHotKey::~MultiHotKey()
   }
 
 
+QAbstractButton* MultiHotKey::registerButton( QAbstractButton* button )
+{
+  if( button )
+  {
+    m_AllButtons.insert( button );
+    return registerToolTip( button, getCustomToolTip( button ) );
+  }
+  return button;
+}
+
+
+QAbstractButton* MultiHotKey::registerToolTip( QAbstractButton* button, const QString& Tooltip1st )
+{
+  if( button )
+  {
+    m_AllButtons.insert( button );
+    m_ButtonsAndTips[ button ] = Tooltip1st;
+    button->setToolTip( makeTooltip( Tooltip1st, getAllHotkeys( button ) ) );
+  }
+  return button;
+}
+
+
 // bind this seq to this button, and replace or kill ("") the tooltip
 bool MultiHotKey::bindKeySequence(const QKeySequence &KeySequence, QAbstractButton *button, const QString& Tooltip1st )
 { return bindKeySequence_intern( KeySequence, button, true, Tooltip1st );  // bind this seq to this button
@@ -35,7 +59,7 @@ bool MultiHotKey::bindKeySequence(const QKeySequence &KeySequence, QAbstractButt
 
 
 
-bool MultiHotKey::bindKeySequence_intern(const QKeySequence &KeySequence, QAbstractButton *button, bool takeToolTip, const QString& Tooltip1st )
+bool MultiHotKey::bindKeySequence_intern(const QKeySequence &KeySequence, QAbstractButton *button, bool takeTooltip1st, const QString& Tooltip1st )
 {
     if( !button )
       return false;
@@ -71,7 +95,16 @@ bool MultiHotKey::bindKeySequence_intern(const QKeySequence &KeySequence, QAbstr
       }
     }
 
-    QShortcut *pShortCut = new QShortcut( KeySequence, button );
+    QShortcut *pShortCut = 0;
+    try
+    {
+      pShortCut = new QShortcut( KeySequence, button );
+      m_AllButtons.insert( button );
+    } catch( ... )
+    {
+      qDebug() << "invalid Key sequence" << KeySequence.toString() << "for" << button->text();
+      return false;
+    }
 
 #if !defined(MULTIHOTKEY_LAMBDA)
     SlotWrapper* pSlotWrapper = new SlotWrapper( button, this );
@@ -86,14 +119,14 @@ bool MultiHotKey::bindKeySequence_intern(const QKeySequence &KeySequence, QAbstr
 #endif // has QT4 or 5
 
     m_ButtonsAndKeys[ KeySequence ] = Accelerator_t( button, pShortCut );
-    if( takeToolTip ) // any string, even "" replaces stored string, but "" makes deletion of tooltip and useToolTip=false kepps it as it is
+    if( takeTooltip1st ) // any string, even "" replaces stored string, but "" makes deletion of tooltip and useToolTip=false kepps it as it is
     { m_ButtonsAndTips[ button ] = Tooltip1st;
       button->setToolTip( makeTooltip( Tooltip1st, getAllHotkeys(button) ) );
     }
     else
     { QString RecentToolTip( m_ButtonsAndTips[ button ] );
       if( RecentToolTip.isEmpty() )
-      {  RecentToolTip = button->toolTip();
+      {  RecentToolTip = getCustomToolTip( button );
          m_ButtonsAndTips[ button ] = RecentToolTip;
       }
       button->setToolTip( makeTooltip( RecentToolTip, getAllHotkeys(button) ) );
@@ -175,6 +208,28 @@ bool MultiHotKey::unbindKeySequences( QAbstractButton *button )
     return bDone;
 }
 
+QString MultiHotKey::getAccelerator( const QString& ButtonName ) const
+{
+  QString AltAccelerator;
+
+  QString AltLetter;
+  int from=0, ampersand, twice;
+
+  //qDebug() << "found Hotkey" << KeySequence.toString() << "from" << storedButtonName;
+  do
+  {
+    ampersand = ButtonName.indexOf( '&', from );
+    twice = ButtonName.indexOf( "&&", from );
+    if( ampersand>-1 && ampersand==twice ) from++;
+    if( ampersand>-1 && ampersand!=twice && ampersand < ButtonName.length()-1 )
+    {
+      QString Letter( ButtonName[ ampersand+1 ] );
+      AltLetter.append("Alt+").append( Letter.toUpper() );
+      break;
+    }
+  } while( ampersand>-1 && ++from < ButtonName.length() );
+  return AltLetter;
+}
 
 /* ==
  * a) get a human readable String with _all_ hotkeys of the given Button
@@ -203,24 +258,12 @@ QString MultiHotKey::getAllHotkeys( QAbstractButton *button, bool TooltipFriendl
       if( button == curr_button ) // found the requested button
       {
         QKeySequence KeySequence = it.key();
-        storedButtonName = it.value().first->text();
+        storedButtonName = curr_button->text();
 
-        QString AltLetter;
-        int from=0, ampersand, twice;
-        //qDebug() << "found Hotkey" << KeySequence.toString() << "from" << storedButtonName;
-        num++;
-        do
-        {
-          ampersand = storedButtonName.indexOf( '&', from );
-          twice = storedButtonName.indexOf( "&&", from );
-          if( ampersand>-1 && ampersand==twice ) from++;
-          if( ampersand>-1 && ampersand!=twice && ampersand<storedButtonName.length()-1 )
-          {
-            QString Letter( storedButtonName[ampersand+1] );
-            AltLetter.append("Alt+").append( Letter.toUpper() );
-            break;
-          }
-        } while( ampersand>-1 && ++from < storedButtonName.length() );
+        QString AltLetter = getAccelerator( storedButtonName );
+        if( ! AltLetter.isEmpty() )
+        { num++;
+        }
 
         if( ! AltLetter.isEmpty() && ! ShortCutNames.contains(AltLetter) ) // ensure, the Alt+... Letter is only inserted once and only at 1st position
         {
@@ -230,26 +273,43 @@ QString MultiHotKey::getAllHotkeys( QAbstractButton *button, bool TooltipFriendl
           ShortCutNames.append( AltLetter );
         }
 
-        if( ! ShortCutNames.isEmpty() )
-        { ShortCutNames.append("', '");
+        if( ! KeySequence.isEmpty() )
+        {
+          if( ! ShortCutNames.isEmpty() )
+          { ShortCutNames.append("', '");
+          }
+          num++;
+          ShortCutNames.append( KeySequence.toString() );
         }
-        ShortCutNames.append( KeySequence.toString() );
       }
       it++;
     }
 
+    if( num==0 ) // nothing found in m_ButtonsAndKeys, but the Button can just have a "La&bel", but no Hotkeys, so ask the button itself:
+    {
+      storedButtonName = button->text();
+      QString AltLetter = getAccelerator( storedButtonName );
+      if( ! AltLetter.isEmpty() )
+      {
+        ShortCutNames.append( AltLetter );
+        num++;
+      }
+    }
+
     if( TooltipFriendlyFormat )
     {
-        QString Line( ( num==1 ) ? \
-                    (QObject::tr("Hotkey:'%1'").arg(ShortCutNames)) : \
-                    (QObject::tr("Hotkeys:'%1'").arg(ShortCutNames)) );
+        QString Line( ( num==0 ) ? \
+                    (tr("No Hotkey")) : ( num==1 ) ? \
+                    (tr("Hotkey:'%1'").arg(ShortCutNames)) : \
+                    (tr("Hotkeys:'%1'").arg(ShortCutNames)) );
         return Line;
     }
     else
     {
-        QString Line( ( num==1 ) ? \
-                    (QObject::tr("Hotkey('%1'):'%2'").arg(storedButtonName).arg(ShortCutNames)) : \
-                    (QObject::tr("Hotkeys('%1'):'%2'").arg(storedButtonName).arg(ShortCutNames)) );
+      QString Line( ( num==0 ) ? \
+                    (tr("Hotkey('%1'): none").arg(storedButtonName)) : ( num==1 ) ? \
+                    (tr("Hotkey('%1'):'%2'").arg( storedButtonName).arg(ShortCutNames)) : \
+                    (tr("Hotkeys('%1'):'%2'").arg(storedButtonName).arg(ShortCutNames)) );
         return Line;
     }
 }
@@ -258,44 +318,114 @@ QString MultiHotKey::getAllHotkeys( QAbstractButton *button, bool TooltipFriendl
 QStringList MultiHotKey::getAllHotkeysByButton( bool TooltipFriendlyFormat ) const
 {
   QStringList ListOfHotkeys;
-
-  Hotkeys_t::const_iterator it = m_ButtonsAndKeys.begin();
   QStringList seen;
-  while( it != m_ButtonsAndKeys.end() )
+
+  /* scope_0 */
   {
-    QAbstractButton* curr_button = it.value().first;
-    QString curr_imprint( it.value().first->text() );
-    if( ! seen.contains( curr_imprint ) ) // only evaluate the getAllHotkeys 1 times for each button, while this loop is for each hotkey
+    Q_FOREACH( QAbstractButton* curr_button, m_AllButtons )
     {
-      QString HotKeys = getAllHotkeys( curr_button, TooltipFriendlyFormat ) + "\n";
-      ListOfHotkeys.push_back( HotKeys );
-      seen.push_back( curr_imprint );
+      QString curr_imprint( curr_button->text() );
+      if( ! seen.contains( curr_imprint ) ) // only evaluate the getAllHotkeys 1 times for each button, while this loop is for each hotkey
+      {
+        QString HotKeys = getAllHotkeys( curr_button, TooltipFriendlyFormat );
+        if( ! TooltipFriendlyFormat ) HotKeys.append( "\n" );
+        ListOfHotkeys.push_back( HotKeys );
+        seen.push_back( curr_imprint );
+      }
     }
-    ++it;
+  }
+
+  /* scope_1 should be never hit anything now, right? */
+  {
+    Hotkeys_t::const_iterator it = m_ButtonsAndKeys.begin();
+    while( it != m_ButtonsAndKeys.end() )
+    {
+      QAbstractButton* curr_button = it.value().first;
+      // can get outdated: QString curr_imprint( it.value().first->text() );
+      QString curr_imprint( curr_button->text() );
+      if( ! curr_imprint.isEmpty() && ! seen.contains( curr_imprint ) ) // only evaluate the getAllHotkeys 1 times for each button, while this loop is for each hotkey
+      {
+        Q_ASSERT_X( false, curr_imprint.toLatin1().constData(), "button missed in m_AllButtons set, but found in m_ButtonsAndKeys." );
+        QString HotKeys = getAllHotkeys( curr_button, TooltipFriendlyFormat );
+        if( ! TooltipFriendlyFormat ) HotKeys.append( "\n" );
+        ListOfHotkeys.push_back( HotKeys );
+        seen.push_back( curr_imprint );
+      }
+      ++it;
+    }
+  }
+
+  // in case we do not assigned Hotkeys, we still can have those "Alt+Ampersand-Letter" Accellerators, managed within m_ButtonsAndTips (which is far from perfect, because if we do not assign a hotkey and not a Tip, we are blind for the accellerator - to be improved
+  /* scope_2 should be never hit anything now, right? */
+  {
+    ToolTips_t::const_iterator it2 = m_ButtonsAndTips.begin();
+    while( it2 != m_ButtonsAndTips.end() )
+    {
+      QAbstractButton* curr_button = it2.key();
+      //QString curr_imprint( it2.value() ); // this is the tooltip text, not the Imprint
+      QString curr_imprint( curr_button->text() );
+      if( ! curr_imprint.isEmpty() && ! seen.contains( curr_imprint ) ) // only evaluate the getAllHotkeys 1 times for each button, while this loop is for each hotkey
+      {
+        Q_ASSERT_X( false, curr_imprint.toLatin1().constData(), "button missed in m_AllButtons set, but found in m_ButtonsAndTips." );
+        QString HotKeys = getAllHotkeys( curr_button, TooltipFriendlyFormat );
+        if( ! TooltipFriendlyFormat ) HotKeys.append( "\n" );
+        ListOfHotkeys.push_back( HotKeys );
+        seen.push_back( curr_imprint );
+      }
+      ++it2;
+    }
   }
   return ListOfHotkeys;
 }
 
 
-void MultiHotKey::refreshHotkeyTooltip(QAbstractButton* button, const QString& setTooltip)
+void MultiHotKey::setToolTip(QAbstractButton* button, const QString& newToolTip)
 {
-    Hotkeys_t::iterator it = m_ButtonsAndKeys.begin();
-    while( it != m_ButtonsAndKeys.end() )
+  refreshHotkeyTooltip_internal( button, newToolTip, false );
+}
+
+void MultiHotKey::refreshHotkeyTooltip( QAbstractButton* button )
+{
+  refreshHotkeyTooltip_internal( button, "", true );
+}
+
+void MultiHotKey::refreshHotkeyTooltip_internal(QAbstractButton* button, const QString& newToolTip, bool bInheritButtonTooltip )
+{
+  bool bFoundInButtonsAndTips = false;
+  ToolTips_t::iterator it = m_ButtonsAndTips.begin();
+
+  while( it != m_ButtonsAndTips.end() )
+  {
+    QAbstractButton* curr_button = it.key();
+    if( !button || button == curr_button ) // call for one special button or call for all buttons
     {
-      QAbstractButton* curr_button = it.value().first;
-      if( !button || button == curr_button ) // call for one special button or call for all buttons
-      {
-        QString RecentToolTip( setTooltip.isEmpty() ? m_ButtonsAndTips[ curr_button ] : setTooltip );
-        if( RecentToolTip.isEmpty() )
-        {  RecentToolTip = curr_button->toolTip();
-        }
-        m_ButtonsAndTips[ curr_button ] = RecentToolTip;
-        QString newTooltip( makeTooltip( RecentToolTip, getAllHotkeys(curr_button) ) );
-        curr_button->setToolTip( newTooltip );
+      /* if arg2 given, take it.
+       * else if m_ButtonsAndTips has stored one, take that
+       * else take last Qt API assigned tooltip
+       */
+      QString RecentToolTip( (! newToolTip.isEmpty()) ? newToolTip : it.value() );
+      if( bInheritButtonTooltip && RecentToolTip.isEmpty() )
+      { RecentToolTip = getCustomToolTip( button );
       }
-      it++;
+
+      it->operator=( RecentToolTip );
+      //m_ButtonsAndTips[ curr_button ] = RecentToolTip;
+      QString newTooltip( makeTooltip( RecentToolTip, getAllHotkeys(curr_button) ) );
+      curr_button->setToolTip( newTooltip );
+      bFoundInButtonsAndTips = true;
     }
-    return;
+    it++;
+  }
+
+  // currently empty container - typically this is the 1st time we assign a tooltip, before assigning a hotkey!
+  if( button && ! bFoundInButtonsAndTips )
+  {
+      m_ButtonsAndTips[ button ] = newToolTip;
+      button->setToolTip( newToolTip );
+      return;
+  }
+
+  return;
 }
 
 
@@ -313,4 +443,18 @@ QString MultiHotKey::makeTooltip( const QString& Tool1st, const QString& Keylist
   { Result = Tooltip1st + Keylist;
   }
   return Result;
+}
+
+
+QString MultiHotKey::getCustomToolTip( const QAbstractButton* button ) const
+{
+  QString Helper;
+  if( button )
+  {
+    Helper = button->toolTip();
+    Helper = Helper.split( tr("No Hotkey") ).first();
+    Helper = Helper.split( tr("Hotkey:'" ) ).first();
+    Helper = Helper.split( tr("Hotkeys:'") ).first();
+  }
+  return Helper;
 }
